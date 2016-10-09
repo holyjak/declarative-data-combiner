@@ -2,8 +2,7 @@
 TODO
 ====
 
-1. Review the code and test, clean up
-2. Add API docs intro and full annotated example; manufacture sample data to use
+2. Add full annotated example; manufacture sample data to use
    - perhaps use https://dev.mysql.com/doc/employee/en/sakila-structure.html
 3. Add "Switch", "FirstOf", see TODOs
 4. Review the README, is it presented clearly and attractively, is the value clear?
