@@ -1,12 +1,13 @@
 {
   "name": "declarative-data-combiner",
-  "version": "0.0.9",
+  "version": "0.9.0",
   "description": "Add new properties to a tree data structure from a number of other data structures in a declarative manner.",
-  "main": "index.js",
+  "main": "./dist/declarativeCombiner.js",
   "scripts": {
     "test": "mocha --opts test/mocha.opts test",
     "test:watch": "mocha --watch --opts test/mocha.opts test",
-    "transpile": "babel lib/ --out-dir build"
+    "transpile": "babel src/ --out-dir dist",
+    "prepublish": "npm run transpile"
   },
   "keywords": [
     "data"
