@@ -2,8 +2,9 @@
 const util = require("util");
 const _ = require('lodash');
 const Immutable = require('seamless-immutable//seamless-immutable.development');
-const combiner = require("../src/declarativeCombiner");
-const { Dictionary, List, Template, Join, IfNoMatch, /*Key, Property, JoinPredicates*/ } = combiner;
+
+import { Combiner, Dictionary, List, Template, Join, IfNoMatch, stringifyAudit /*Key, Property, JoinPredicates*/ } from "../src/declarativeCombiner";
+const combiner = new Combiner();
 
 // Individual tests can set this to true to get their audit printed - typically if they failed
 let enableAuditing = false;
@@ -11,7 +12,7 @@ let enableAuditing = false;
 function combineAndResult(def, sourceElement, joins) {
     const combination = combiner.combine(def, _.cloneDeep(sourceElement), _.cloneDeep(joins), {enableAuditing: true});
     if (enableAuditing) {
-        console.log("AUDIT", combiner.stringifyAudit(combination.auditReport));
+        console.log("AUDIT", stringifyAudit(combination.auditReport));
     }
     return combination.result;
 }

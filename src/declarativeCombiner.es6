@@ -3,9 +3,6 @@ const _ = require("lodash");
 const Immutable =  require('seamless-immutable'); // TODO Make it optional, define Immutable = identity if not available
 // The dev version (that actually freezes data etc.) is 2-3 times slower with our large data
 
-const optimization = { skipChecks: false }; // Enable in production for extra perf ... TODO Enable users to change, measure effect
-const loggerWarn = (msg) => console.log(msg); // FIXME allow users to override how we log
-
 const DEBUG = false; // Change to true when troubleshooting
 let auditingDisabled = true && !DEBUG; // Disable to save some 10s of % of processing time
 const SYM_REMOVE = Symbol("marker to remove the given element from a dict/list");
@@ -147,6 +144,31 @@ export function Template(properties, options) {
 }
 
 /**
+ * Create a new combiner with custom options.
+ * @param {function(string)}[loggerWarn=console.log] - the function to invoke with warnings, f.ex. when a join `fn` fails
+ * @constructor
+ */
+export function Combiner({ loggerWarn } = {}) {
+    this.loggerWarn = loggerWarn || ((msg) => console.log(msg));
+}
+Combiner.prototype.combineAndAudit = combineAndAudit;
+Combiner.prototype.combineAndResult = combineAndResult;
+Combiner.prototype.combine = combine;
+Combiner.prototype._process = process;
+Combiner.prototype._processValues = processValues;
+Combiner.prototype._processValue = processValue;
+Combiner.prototype._resolveJoins = resolveJoins;
+Combiner.prototype._resolveJoin = resolveJoin;
+
+/**
+ * Convenience for the old-style require - make it possible to:
+ *
+ *    const Combiner = require(...);
+ *    const { List, Join, ...} = Combiner.DSL;
+ */
+export default Combiner;
+
+/**
  * Process recursively the sourceElement (tree-like) data structure (dictionary, array),
  * combining it with data from other joined data structures, passed in through the initial bindings and derived.
  * Think of a SQL join performed on trees.
@@ -194,16 +216,19 @@ export function Template(properties, options) {
  * this is unnecessary overhead. However, if the cache itself used Immutable, then
  * we could re-add it (perhaps using mutable merge instead of immutable one)
  */
-export function combine(def, sourceElement, bindings, options) {
+function combine(def, sourceElement, bindings, options) {
     options = options || {};
     const auditingDisabledOrig = auditingDisabled;
     if (options.enableAuditing) {
         auditingDisabled = false;
     }
-    const context = {bindings, audit: ({path: [], report: []})};
+    const context = {
+        bindings,
+        audit: ({path: [], report: []})
+    };
 
     try {
-        const result = Immutable(process(context, def, null, sourceElement, "<root>"));
+        const result = Immutable(this._process(context, def, null, sourceElement, "<root>"));
         return {
             result: result,
             auditReport: context.audit.report, // TODO Deprecated, use the simpler `audit`
@@ -217,16 +242,16 @@ export function combine(def, sourceElement, bindings, options) {
 /** As `combine` but returns the resulting data structure directly, without the audit.
  * @see combine
  */
-export function combineAndResult(def, sourceElement, bindings) {
-    return combine(def, sourceElement, bindings).result;
+function combineAndResult(def, sourceElement, bindings) {
+    return this.combine(def, sourceElement, bindings).result;
 }
 
 /** As `combine` but enables auditing and returns `{ result, audit }`.
  * You can explicitly disable auditing with options = `{ enableAuditing: false }`.
  * @see combine
  */
-export function combineAndAudit(def, sourceElement, bindings, options) {
-    return combine(def, sourceElement, bindings, Object.assign({ enableAuditing: true }, options));
+function combineAndAudit(def, sourceElement, bindings, options) {
+    return this.combine(def, sourceElement, bindings, Object.assign({ enableAuditing: true }, options));
 }
 
 /**
@@ -248,7 +273,7 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
 
     // 1. Has joins prop? => exec, add to context
     if (joinsDef) {
-        const {resolvedBindings, elementAction} = resolveJoins(sourceElement, context, joinsDef);
+        const {resolvedBindings, elementAction} = this._resolveJoins(sourceElement, context, joinsDef);
         context.bindings = resolvedBindings;
         // 1. "remove" has top priority
         if (elementAction.remove) {
@@ -281,7 +306,7 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
                         }
                         pushToAuditPath(context, (def.key || "<unnamed key>") + "=" + key);
                         try {
-                            return process(context, def.value, def.joins, value, key);
+                            return this._process(context, def.value, def.joins, value, key);
                         } finally {
                             popAuditPath(context);
                         }
@@ -298,7 +323,7 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
                         }
                         pushToAuditPath(context, "index=" + index);
                         try {
-                            return process(context, def.value, def.joins, value, index);
+                            return this._process(context, def.value, def.joins, value, index);
                         } finally {
                             popAuditPath(context);
                         }
@@ -313,7 +338,7 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
         assert(! def.joins, "`joins` isn't supported on Templates, only on Dictionaries, Lists", context);
         const replace = def._options && def._options.replace;
 
-        const resolvedProperties = processValues(context, def, sourceElement, maybeSourceElementKey);
+        const resolvedProperties = this._processValues(context, def, sourceElement, maybeSourceElementKey);
 
         // ignoreNonValuesMerger: Omit "empty" - the joined data may override
         // stuff in the source element but if not, we preserve the original value
@@ -323,6 +348,8 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
 
 /** Process the value of a Template property, replacing it with what is requested. */
 function processValues(context, templateDef, sourceElement, maybeSourceElementKey) {
+
+    const self = this;
 
     function updateLocationAndProcessValue(propertyValueTemplate, propertyName) {
         let newSourceElement = sourceElement;
@@ -337,7 +364,7 @@ function processValues(context, templateDef, sourceElement, maybeSourceElementKe
 
         pushToAuditPath(context, propertyName, descend); // FIXME descend should not be false if the value is a fn that itself calls the combiner; fix by a DSL for this case
         try {
-            return processValue(context, newSourceElement, propertyValueTemplate, maybeSourceElementKey);
+            return self._processValue(context, newSourceElement, propertyValueTemplate, maybeSourceElementKey);
         } finally {
             popAuditPath(context, descend);
         }
@@ -362,12 +389,12 @@ function processValue(context, sourceElement, valueDef, sourceElementKey) {
         try {
             return valueFn(context.bindings, sourceElement, sourceElementKey);
         } catch (err) {
-            loggerWarn(`declarativeCombiner.processValue: fn failed with ${err}. Bindings: ${_.keys(context.bindings)}, sourceElement keys: ${_.keys(sourceElement)}.`,
+            this.loggerWarn(`declarativeCombiner.processValue: fn failed with ${err}. Bindings: ${_.keys(context.bindings)}, sourceElement keys: ${_.keys(sourceElement)}.`,
                 {err: err, location: "declarativeCombiner.processValue"});
             return undefined;
         }
     } else if (isDef(valueDef)) {
-        return process(context, valueDef, null, sourceElement);
+        return this._process(context, valueDef, null, sourceElement);
     } else if (typeof valueDef === "object" && valueDef.source) {
         const result = _.get(context.bindings, valueDef.source);
         return result || valueDef.default;
@@ -380,7 +407,7 @@ function processValue(context, sourceElement, valueDef, sourceElementKey) {
 function resolveJoins(sourceElement, context, joinsDef) {
     let resolvedBindings = context.bindings;
     for (const join of joinsDef) {
-        resolvedBindings = resolveJoin(sourceElement, context, resolvedBindings, join);
+        resolvedBindings = this._resolveJoin(sourceElement, context, resolvedBindings, join);
 
         const noMatch = resolvedBindings[join.as] === undefined;
         const ifNoMatch = (typeof join.ifNoMatch === "function") ?
@@ -434,7 +461,7 @@ function resolveJoin(sourceElement, context, bindings, join) {
     try {
         resultValue = join.fn(joinData, sourceElement, context.maybeSourceElementKey, context.bindings);
     } catch (err) {
-        loggerWarn(`declarativeCombiner.resolveJoin: join.fn for ${join.key}->${join.as} failed with ${err}`,
+        this.loggerWarn(`declarativeCombiner.resolveJoin: join.fn for ${join.key}->${join.as} failed with ${err}`,
             {err: err, location: "declarativeCombiner.resolveJoin." + join.key});
     }
     let makeMismatchReport = _.constant(null);
@@ -668,10 +695,6 @@ function stripNonValueProperties(templateOrDictionary) {
 }
 
 function assertKeys(value, keys, msg, context) {
-    if (! optimization.skipChecks) {
-        // optimization - skip checks
-        return;
-    }
     const requiredKeys = keys.required || [];
     const optionalKeys = keys.optional || [];
     const allAllowedKeys = _.union(requiredKeys, optionalKeys);
@@ -721,13 +744,4 @@ export function stringifyAudit (audit) {
     }, 2);
 }
 
-/** Make it possible to `import combiner, { Dictionary, ... } from ...` */
-export default {
-    Dictionary,
-    List,
-    Template,
-    Join,
-    IfNoMatch,
-    combineAndAudit,
-    combineAndResult
-};
+
