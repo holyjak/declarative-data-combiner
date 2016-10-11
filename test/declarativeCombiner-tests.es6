@@ -2,7 +2,7 @@
 const util = require("util");
 const _ = require('lodash');
 const Immutable = require('seamless-immutable//seamless-immutable.development');
-const combiner = require("../lib/declarativeCombiner");
+const combiner = require("../src/declarativeCombiner");
 const { Dictionary, List, Template, Join, IfNoMatch, /*Key, Property, JoinPredicates*/ } = combiner;
 
 // Individual tests can set this to true to get their audit printed - typically if they failed

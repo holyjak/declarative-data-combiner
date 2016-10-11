@@ -1,2 +1,4 @@
 --recursive
 --compilers js:babel-register
+--watch-extensions es6
+--require test/common

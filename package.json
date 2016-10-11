@@ -4,10 +4,10 @@
   "description": "Add new properties to a tree data structure from a number of other data structures in a declarative manner.",
   "main": "./dist/declarativeCombiner.js",
   "scripts": {
-    "test": "mocha --opts test/mocha.opts test",
-    "test:watch": "mocha --watch --opts test/mocha.opts test",
+    "test": "mocha --opts test/mocha.opts test/**/*.es6",
+    "test:watch": "mocha --watch --opts test/mocha.opts test/**/*.es6",
     "transpile": "babel src/ --out-dir dist",
-    "prepublish": "npm run transpile"
+    "prepublish": "npm run test && npm run transpile"
   },
   "keywords": [
     "data"
