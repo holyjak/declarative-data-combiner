@@ -1,6 +1,6 @@
 {
   "name": "declarative-data-combiner",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Add new properties to a tree data structure from a number of other data structures in a declarative manner.",
   "main": "./dist/declarativeCombiner.js",
   "scripts": {
