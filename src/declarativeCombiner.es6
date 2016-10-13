@@ -145,11 +145,11 @@ export function Template(properties, options) {
 
 /**
  * Create a new combiner with custom options.
- * @param {function(string)}[loggerWarn=console.log] - the function to invoke with warnings, f.ex. when a join `fn` fails
+ * @param {function(string,Error)}[loggerWarn=console.log] - the function to invoke with warnings, f.ex. when a join `fn` fails
  * @constructor
  */
 export function Combiner({ loggerWarn } = {}) {
-    this.loggerWarn = loggerWarn || ((msg) => console.log(msg));
+    this.loggerWarn = loggerWarn || ((msg, err) => console.log(msg, err));
 }
 Combiner.prototype.combineAndAudit = combineAndAudit;
 Combiner.prototype.combineAndResult = combineAndResult;
@@ -389,8 +389,9 @@ function processValue(context, sourceElement, valueDef, sourceElementKey) {
         try {
             return valueFn(context.bindings, sourceElement, sourceElementKey);
         } catch (err) {
-            this.loggerWarn(`declarativeCombiner.processValue: fn failed with ${err}. Bindings: ${_.keys(context.bindings)}, sourceElement keys: ${_.keys(sourceElement)}.`,
-                {err: err, location: "declarativeCombiner.processValue"});
+            this.loggerWarn(
+                `declarativeCombiner.processValue: fn failed with ${err}. Bindings: ${_.keys(context.bindings)}, sourceElement keys: ${_.keys(sourceElement)}.`,
+                err);
             return undefined;
         }
     } else if (isDef(valueDef)) {
@@ -461,8 +462,9 @@ function resolveJoin(sourceElement, context, bindings, join) {
     try {
         resultValue = join.fn(joinData, sourceElement, context.maybeSourceElementKey, context.bindings);
     } catch (err) {
-        this.loggerWarn(`declarativeCombiner.resolveJoin: join.fn for ${join.key}->${join.as} failed with ${err}`,
-            {err: err, location: "declarativeCombiner.resolveJoin." + join.key});
+        this.loggerWarn(
+            `declarativeCombiner.resolveJoin: join.fn for ${join.key}->${join.as} failed with ${err}`,
+            err);
     }
     let makeMismatchReport = _.constant(null);
 
