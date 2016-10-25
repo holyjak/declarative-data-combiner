@@ -7,6 +7,10 @@
     "type": "git",
     "url": "git@github.com:jakubholynet/declarative-data-combiner.git"
   },
+  "engines": {
+    "node": ">=4.0.0",
+    "npm": "2.x"
+  },
   "scripts": {
     "test": "mocha --opts test/mocha.opts test/**/*.es6",
     "test:watch": "mocha --watch --opts test/mocha.opts test/**/*.es6",
