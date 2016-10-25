@@ -13,6 +13,8 @@ Declarative Data Combiner
 
 Add new properties to a tree data structure from a number of other data structures in a declarative manner.
 
+[!test status](https://codeship.com/projects/3fad06a0-7cbc-0134-501d-369b6cd4ca27/status?branch=master)
+
 The "business case" for the declarative data combiner
 ------------------------------------------------------
 

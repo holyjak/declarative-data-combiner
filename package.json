@@ -3,6 +3,10 @@
   "version": "0.10.0",
   "description": "Add new properties to a tree data structure from a number of other data structures in a declarative manner.",
   "main": "./dist/declarativeCombiner.js",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:jakubholynet/declarative-data-combiner.git"
+  },
   "scripts": {
     "test": "mocha --opts test/mocha.opts test/**/*.es6",
     "test:watch": "mocha --watch --opts test/mocha.opts test/**/*.es6",
