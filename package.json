@@ -10,7 +10,7 @@
     "prepublish": "npm run test && npm run transpile"
   },
   "keywords": [
-    "data"
+    "data", "transformation"
   ],
   "author": "Jakub Holy",
   "license": "EPL-1.0",
