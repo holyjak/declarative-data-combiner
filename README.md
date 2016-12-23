@@ -253,6 +253,8 @@ See
 3. JSDoc of the DSL classes and `combine`
 4. The unit tests
 
+Also see [CHANGELOG.md](CHANGELOG.md)
+
 ### API Introduction
 
 - Dictionary, List, Template
