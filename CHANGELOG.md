@@ -1,4 +1,4 @@
-## 0.10.1 (2016-12-23)
+## 0.10.2 (2016-12-23)
 
 * Include location information in declarativeCombiner.processValue errors
 

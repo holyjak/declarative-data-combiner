@@ -390,7 +390,7 @@ function processValue(context, sourceElement, valueDef, sourceElementKey) {
             return valueFn(context.bindings, sourceElement, sourceElementKey);
         } catch (err) {
             this.loggerWarn(
-                `declarativeCombiner.processValue: fn failed with ${err}. Bindings: ${_.keys(context.bindings)}, sourceElement keys: ${_.keys(sourceElement)}.`,
+                `declarativeCombiner.processValue: fn failed with ${err}. Bindings: ${_.keys(context.bindings)}, sourceElement keys: ${_.keys(sourceElement)}.` + maybePathInfo(context),
                 err);
             return undefined;
         }
@@ -401,7 +401,7 @@ function processValue(context, sourceElement, valueDef, sourceElementKey) {
         return result || valueDef.default;
     } else {
         throw new Error("Unsupported value type " +
-            valueDef.constructor.name + ": " + JSON.stringify(valueDef) + pathInfo(context));
+            valueDef.constructor.name + ": " + JSON.stringify(valueDef) + maybePathInfo(context));
     }
 }
 
@@ -463,7 +463,7 @@ function resolveJoin(sourceElement, context, bindings, join) {
         resultValue = join.fn(joinData, sourceElement, context.maybeSourceElementKey, context.bindings);
     } catch (err) {
         this.loggerWarn(
-            `declarativeCombiner.resolveJoin: join.fn for ${join.key}->${join.as} failed with ${err}`,
+            `declarativeCombiner.resolveJoin: join.fn for ${join.key}->${join.as} failed with ${err}` + maybePathInfo(context),
             err);
     }
     let makeMismatchReport = _.constant(null);
@@ -708,27 +708,27 @@ function assertKeys(value, keys, msg, context) {
         throw new Error("Missing required keys " +
             JSON.stringify(missing) + "; actual: " +
             JSON.stringify(actualKeys) + " " + (msg? msg : "") +
-            pathInfo(context)
+            maybePathInfo(context)
         );
     }
     if (invalid.length > 0) {
         throw new Error("Unsupported keys " +
             JSON.stringify(invalid) + "; supported: " +
             JSON.stringify(allAllowedKeys) + " " + (msg? msg : "") +
-            pathInfo(context)
+            maybePathInfo(context)
         );
     }
 }
 
 /** For troubleshooting */
-function pathInfo(maybeContext) {
+function maybePathInfo(maybeContext) {
     if (!maybeContext) return "";
     return " AT " + maybeContext.audit.path.join(".");
 }
 
 function assert(check, msg, context) {
     if (!check) {
-        throw new Error("Assertion failure: " + msg + pathInfo(context));
+        throw new Error("Assertion failure: " + msg + maybePathInfo(context));
     }
     return check;
 }
