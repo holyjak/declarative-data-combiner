@@ -71,7 +71,8 @@ export function List(properties) {
  * @param {string} properties.key - the data to join; `bindings[key]` will be passed as the first argument to the `fn`
  * @param {string} properties.as - how to name the result in the current bindings (=> it sets `bindings[as]`)
  * @param {function(*, object, (string|integer)} properties.fn - a function that performs the join; arguments:
- *        the selected binding (see `key`), sourceElement (the current dictionary value being processed), its dictionary key, bindings
+ *        the selected binding (see `key`), sourceElement (the current dictionary value being processed), its dictionary key,
+ *        bindings (including bindings[ANCESTORS], bindings[PARENT])
  * @param {(IfNoMatch|function)} [properties.ifNoMatch] - what to do if `fn` returns null/undefined;
  *        If it is a function, it must return one of IfNoMatch and is invoked with (the binding, sourceElement, its key, bindings)
  * @param {string} [properties.on] - UNUSED until we re-implement declarative joins
@@ -128,7 +129,7 @@ export const IfNoMatch = {
  *        the properties+values of the resulting object. Each key is kept as-is while
  *        the value is either:
  *        - a string of the form `<binding key>[.propertyName]*` - path to a value in `bindings`
- *        - or a function taking (bindings, the current sourceElement)
+ *        - or a function taking (bindings, the current sourceElement) (see also bindings[ANCESTORS], bindings[PARENT])
  *        - or an object with `{source, default}` where the source is the same as the plain string above, `default` is any value; TODO replace with a DSL class instance? `Property("path", { default: ... })`
  *        - TODO support `Literal(<any value>)` (as an alternative to `() => <any value>`)
  *        - TODO support FirstOf("property path", ...) instead of e.g. `({ pricePlansContainer, virtualBundle }) => virtualBundle ? virtualBundle.pricePlans : pricePlansContainer.pricePlans,`
@@ -306,10 +307,12 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
                             return value; // skip, no transformation
                         }
                         pushToAuditPath(context, (def.key || "<unnamed key>") + "=" + key);
+                        context = pushToAncestors(context, {key}, false);
                         try {
                             return this._process(context, def.value, def.joins, value, key);
                         } finally {
                             popAuditPath(context);
+                            popAncestors(context);
                         }
                     })
                     .omitBy(v => v === SYM_REMOVE) // if a join had no match and ifNoMatch=remove
@@ -325,10 +328,12 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
                             return value; // skip, no transformation
                         }
                         pushToAuditPath(context, "index=" + index);
+                        context = pushToAncestors(context, {index}, false);
                         try {
                             return this._process(context, def.value, def.joins, value, index);
                         } finally {
                             popAuditPath(context);
+                            popAncestors(context);
                         }
                     })
                     .filter(v => v !== SYM_REMOVE); // if a join had no match and ifNoMatch=remove
@@ -352,7 +357,7 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
 
 /** Process the value of a Template property, replacing it with what is requested. */
 function processValues(context, templateDef, sourceElement, maybeSourceElementKey) {
-
+    const originalSourceElement = sourceElement;
     const self = this;
 
     function updateLocationAndProcessValue(propertyValueTemplate, propertyName) {
@@ -360,6 +365,8 @@ function processValues(context, templateDef, sourceElement, maybeSourceElementKe
         const descend = isDef(propertyValueTemplate);
         if (descend) {
             // => we need to descend the source data tree in sync with the def
+            context = pushToAncestors(context, originalSourceElement, true);
+
             if (! sourceElement[propertyName]) {
                 sourceElement = set(sourceElement, propertyName, defaultFor(propertyValueTemplate));
             }
@@ -371,6 +378,7 @@ function processValues(context, templateDef, sourceElement, maybeSourceElementKe
             return self._processValue(context, newSourceElement, propertyValueTemplate, maybeSourceElementKey);
         } finally {
             popAuditPath(context, descend);
+            popAncestors(context, descend);
         }
     }
 
@@ -669,6 +677,55 @@ function popAuditPath(context, maybeCondition) {
             path: audit.path.slice(0, -1)
         });
     }
+}
+
+/**
+ * bindings[ANCESTORS] is an array of the ancestor elements of the current sourceElement.
+ *
+ * A List ancestor is represented as `{index: <index>}`, a Dictionary ancestor as `{key: <the key>}`,
+ * a Template ancestor as the matching sourceElement itself. The immediate parent is the last element,
+ * the top-level object is the first one.
+ *
+ * Beware: If you `console.log(bindings)` then neither ANCESTOR nor PARENTS will show up.
+ */
+export const ANCESTORS = Symbol("ancestors");
+
+/** bindings[PARENT] is the parent element of the current sourceElement iff it matched a Template, null otherwise. */
+export const PARENT = Symbol("parent");
+
+/**
+ * Set the ancestors and parent bindings based on the provide ancestor (which differs by type).
+ * @param {Object} context
+ * @param {Object} ancestor the ancestor to add (the element for a Template, {key: ...} for dict, {index: ..} for list
+ * @param {boolean} setParent should we set also bindings.parent or unset it?
+ * @return {Object} context
+ */
+function pushToAncestors(context, ancestor, setParent) {
+    const ancestors = context.bindings[ANCESTORS] || Immutable([]);
+    const ancestorsUpdated = ancestors.concat([ancestor]);
+
+    // merge broken with Symbols in Immutable 7.0.1, see issue #189
+    context.bindings = set(
+        set(context.bindings, ANCESTORS, ancestorsUpdated),
+        PARENT,
+        setParent? ancestor : null
+    );
+
+    return context;
+}
+
+function popAncestors(context, condition = true) {
+    if (!condition) return context;
+
+    const ancestorsUpdated = context.bindings[ANCESTORS].slice(0, -1);
+    // merge broken with Symbols in Immutable 7.0.1, see issue #189
+    context.bindings = set(
+        set(context.bindings, ANCESTORS, ancestorsUpdated),
+        PARENT,
+        null
+    );
+
+    return context;
 }
 
 function pushAuditReportAtCurrentPath(context, log) {

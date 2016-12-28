@@ -3,7 +3,7 @@ const util = require("util");
 const _ = require('lodash');
 const Immutable = require('seamless-immutable//seamless-immutable.development');
 
-import { Combiner, Dictionary, List, Template, Join, IfNoMatch, stringifyAudit /*Key, Property, JoinPredicates*/ } from "../src/declarativeCombiner";
+import { Combiner, Dictionary, List, Template, Join, IfNoMatch, stringifyAudit /*Key, Property, JoinPredicates*/, ANCESTORS, PARENT } from "../src/declarativeCombiner";
 const combiner = new Combiner();
 
 // Individual tests can set this to true to get their audit printed - typically if they failed
@@ -209,6 +209,204 @@ describe("declarativeCombiner", () => {
             {prop: "Original", coll: ["Original"]},
             {ship: {replacementArray: []}});
         expect(actual).to.eql({prop: "Original", coll: ["Original"]});
+    });
+
+    describe("`parent` and to `ancestors` bindings", () => {
+
+        function storeAncestors(bindings) {
+            ancestors = bindings[ANCESTORS];
+            parent = bindings[PARENT];
+            return "look into the ancestors and parent variables";
+        }
+
+        function getAncestorIdentificationAttributes(ancestor) {
+            return _.pick(ancestor, ["key", "index", "name"]);
+        }
+
+        function getAncestorSubsets(bindings) {
+            return bindings[ANCESTORS].map(getAncestorIdentificationAttributes);
+        }
+
+        function getParentSubset(bindings) {
+            return bindings[PARENT] ?
+                getAncestorIdentificationAttributes(bindings[PARENT]) : bindings[PARENT];
+        }
+
+        const emptyBindings = {};
+        const storeAncestorsTemplate = Template({
+            storeAncestors
+        });
+        let ancestors;
+        let parent;
+
+        beforeEach(() => {
+            ancestors = null;
+            parent = null;
+        });
+
+        it("should add the parent dictionary sourceElement to ancestors as `{key: the key}`", () => {
+            const sourceElement = Immutable({
+                "rootDictKey1": {}
+            });
+            combineAndResult(
+                Dictionary({
+                    key: "id",
+                    value: storeAncestorsTemplate
+                }),
+                sourceElement, emptyBindings);
+            expect(ancestors).to.deep.equal([
+                {key: "rootDictKey1"}
+            ]);
+        });
+
+        it("should add the parent list sourceElement to ancestors as `{index: the index}`", () => {
+            const sourceElement = Immutable([{}]);
+            combineAndResult(
+                List({
+                    value: storeAncestorsTemplate
+                }),
+                sourceElement, emptyBindings);
+            expect(ancestors).to.deep.equal([
+                {index: 0}
+            ]);
+        });
+
+        it("should add the parent template sourceElement to ancestors", () => {
+            const sourceElement = Immutable({ name: "parentElement", child: {}});
+            combineAndResult(
+                Template({
+                    child: storeAncestorsTemplate
+                }),
+                sourceElement, emptyBindings);
+            expect(ancestors).to.deep.equal([{
+                name: "parentElement",
+                child: {}
+            }]);
+        });
+
+        it("should reset ancestors, parent when backtracking and descending into another branch", () => {
+            const sourceElement = Immutable([
+                { name: "first", child: { name: "first's child"} },
+                { name: "second", child: { name: "second's child"} }
+            ]);
+            const result = combineAndResult(
+                List({
+                    value: Template({
+                        child: Template({}),
+                        ancestors: getAncestorSubsets,
+                        parentSet: (bindings) => !!getParentSubset(bindings)
+                    })
+                }),
+                sourceElement, emptyBindings);
+            expect(result).to.deep.equal([
+                {
+                    name: "first",
+                    child: { name: "first's child"},
+                    ancestors: [{index: 0}],
+                    parentSet: false
+                },
+                {
+                    name: "second",
+                    child: { name: "second's child"},
+                    ancestors: [{index: 1}],
+                    parentSet: false
+                }
+            ]);
+        });
+
+        it("complex example: should add all ancestor sourceElements to `ancestors`", () => {
+            const sourceElement = Immutable({
+                "dummyId1": { name: "rootDictEl1", nestedElementAtOne: { name: "nestedEl1",  nestedListAtTwo: [{ name: "leafEl1" }] } },
+                "dummyId2": { name: "rootDictEl2", nestedElementAtOne: { name: "nestedEl2" } }
+            });
+
+            const result = combineAndResult(
+                Dictionary({
+                    key: "id",
+                    value: Template({
+                        ancestorSubsets: getAncestorSubsets,
+                        parentSubset: getParentSubset,
+
+                        nestedElementAtOne: Template({
+                            ancestorSubsets: getAncestorSubsets,
+                            parentSubset: getParentSubset,
+
+                            nestedListAtTwo: List({
+                                value: Template({
+                                    ancestorSubsets: getAncestorSubsets,
+                                    parentSubset: getParentSubset,
+                                })
+                            })
+                        })
+                    })
+                }),
+                sourceElement, emptyBindings);
+
+            expect(result).to.containSubset({
+                "dummyId1": {
+                    name: "rootDictEl1",
+
+                    ancestorSubsets: [{key: "dummyId1"}],
+                    parentSubset: null,
+
+                    nestedElementAtOne: {
+                        name: "nestedEl1",
+
+                        ancestorSubsets: [{key: "dummyId1"}, {name: "rootDictEl1"}],
+                        parentSubset: {name: "rootDictEl1"},
+
+                        nestedListAtTwo: [{
+                            name: "leafEl1",
+
+                            ancestorSubsets: [{key: "dummyId1"}, {name: "rootDictEl1"}, {index:0}],
+                            parentSubset: null,
+                        }]
+                    }
+                },
+                "dummyId2": {
+                    name: "rootDictEl2",
+
+                    ancestorSubsets: [{key: "dummyId2"}],
+                    parentSubset: null,
+
+                    nestedElementAtOne: {
+                        name: "nestedEl2",
+
+                        ancestorSubsets: [{key: "dummyId2"}, {name: "rootDictEl2"}],
+                        parentSubset: {name: "rootDictEl2"}
+                    }
+                }
+            });
+        });
+
+        it("should set `parent` to the direct (non-dictionary) predcessor", () => {
+            const sourceElement = Immutable({ name: "parentElement", child: {}});
+            combineAndResult(
+                Template({
+                    child: storeAncestorsTemplate
+                }),
+                sourceElement, emptyBindings);
+            expect(parent).containSubset({ name: "parentElement" });
+        });
+
+        it("should unset `parent` if the direct predcessor is a dictionary", () => {
+            const sourceElement = Immutable({
+                name: "parentElement",
+                childDict: {
+                    "firstDictEntry": {}
+                }
+            });
+            combineAndResult(
+                Template({
+                    childDict: Dictionary({
+                        key: "entryId",
+                        value: storeAncestorsTemplate
+                    })
+                }),
+                sourceElement, emptyBindings);
+            expect(parent).to.equal(null);
+        });
+
     });
 
     describe("(mutable x immutable source data)", () => {
