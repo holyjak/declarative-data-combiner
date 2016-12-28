@@ -361,7 +361,7 @@ function processValues(context, templateDef, sourceElement, maybeSourceElementKe
         if (descend) {
             // => we need to descend the source data tree in sync with the def
             if (! sourceElement[propertyName]) {
-                sourceElement = set(sourceElement, propertyName, {});
+                sourceElement = set(sourceElement, propertyName, defaultFor(propertyValueTemplate));
             }
             newSourceElement = sourceElement[propertyName];
         }
@@ -692,6 +692,11 @@ function pushAuditReportAtCurrentPath(context, log) {
 
 function isDef(def) {
     return (def instanceof Dictionary) || (def instanceof List) || (def instanceof Template);
+}
+
+function defaultFor(def) {
+    if (def instanceof List) return [];
+    return {}; // Dict, Template
 }
 
 /** Strip any special properties and functions. */
