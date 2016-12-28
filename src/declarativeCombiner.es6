@@ -299,6 +299,7 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
             if (def instanceof Dictionary) {
                 // A) Dictionary: process values recursively
                 // Precondition: _.every(_.isObject, _.values(sourceElement))
+                assert((sourceElement || {}) instanceof Object, "the def is a Dictionary so the sourceElement should be an Object, is: " + (typeof sourceElement), context);
                 return _.chain(sourceElement)
                     .mapValues((value, key) => {
                         if (def.valueFilter && !_.matches(def.valueFilter)(value)) {
@@ -316,7 +317,9 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
             } else if (def instanceof List) {
                 // B) List: process values recursively
                 // Precondition: _.every(_.isObject, _.values(sourceElement))
-                return (sourceElement || [])
+                const definedSourceElement = (sourceElement || []);
+                assert(definedSourceElement instanceof Array, "the def is a List so the sourceElement should be an Array, is: " + (typeof sourceElement), context);
+                return definedSourceElement
                     .map((value, index) => {
                         if (def.valueFilter && !_.matches(def.valueFilter)(value)) {
                             return value; // skip, no transformation
@@ -335,6 +338,7 @@ function process(context, def, joinsDef, sourceElement, maybeSourceElementKey) {
         }
     } else if (def instanceof Template) {
         // C) Template: fill values, recurse
+        assert((sourceElement || {}) instanceof Object, "the def is a Template so the sourceElement should be an Object, is: " + (typeof sourceElement), context);
         assert(! def.joins, "`joins` isn't supported on Templates, only on Dictionaries, Lists", context);
         const replace = def._options && def._options.replace;
 
@@ -686,14 +690,14 @@ function pushAuditReportAtCurrentPath(context, log) {
     });
 }
 
-function isDef(object) {
-    return (object instanceof Dictionary) || (object instanceof List) || (object instanceof Template);
+function isDef(def) {
+    return (def instanceof Dictionary) || (def instanceof List) || (def instanceof Template);
 }
 
 /** Strip any special properties and functions. */
-function stripNonValueProperties(templateOrDictionary) {
+function stripNonValueProperties(def) {
     // "inspect" is a fn we add in tests to make it work with console log
-    return _.chain(templateOrDictionary).omit("joins", "inspect", "_options").value();
+    return _.chain(def).omit("joins", "inspect", "_options").value();
 }
 
 function assertKeys(value, keys, msg, context) {
